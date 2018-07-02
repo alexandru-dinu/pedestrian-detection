@@ -72,7 +72,7 @@ for batch_i, (_, imgs, targets) in enumerate(dataloader):
 
     with torch.no_grad():
         output = model(imgs)
-        output = non_max_suppression(output, 80, conf_thres=opt.conf_thres, nms_thres=opt.nms_thres)
+        output = non_max_suppression(output, num_classes, conf_thres=opt.conf_thres, nms_thres=opt.nms_thres)
 
     # Compute average precision for each sample
     for sample_i in range(targets.size(0)):
