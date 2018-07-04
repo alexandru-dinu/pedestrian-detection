@@ -8,7 +8,6 @@ from models import *
 from utils.datasets import *
 from utils.parse_config import *
 from utils.utils import *
-from coco_conv import coco_to_udacity
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', type=int, default=1, help='size of each image batch')
@@ -19,6 +18,7 @@ parser.add_argument('--weights_path', type=str, default='weights/yolov3.weights'
 parser.add_argument('--iou_thres', type=float, default=0.5, help='iou threshold required to qualify as detected')
 parser.add_argument('--conf_thres', type=float, default=0.5, help='object confidence threshold')
 parser.add_argument('--nms_thres', type=float, default=0.45, help='iou thresshold for non-maximum suppression')
+parser.add_argument('--area_thres', type=float, default=0.05, help='ignore objs with area < threshold')
 parser.add_argument('--n_cpu', type=int, default=0, help='number of cpu threads to use during batch generation')
 parser.add_argument('--use_cuda', action="store_true", help='whether to use cuda if available')
 parser.add_argument('--shuffle', action="store_true")
@@ -32,9 +32,9 @@ cuda = torch.cuda.is_available() and opt.use_cuda
 
 # Get data configuration
 data_config = parse_data_config(opt.data_config_path)
-test_path = data_config['valid']
+test_path = data_config['pedestrians']  # TODO: change here to select a different txt for imgs
 num_classes = int(data_config['classes'])
-names = data_config['names']
+names = load_classes(data_config['names'])
 
 for x, y in data_config.items():
     print("%25s: %s" % (x, y))
@@ -56,7 +56,7 @@ print("-" * 80)
 print("Model loading done")
 
 # Get dataloader
-dataset = ListDataset(test_path)
+dataset = ListDataset(test_path, img_size=img_size)
 dataloader = torch.utils.data.DataLoader(
     dataset,
     batch_size=opt.batch_size, shuffle=opt.shuffle, num_workers=opt.n_cpu
@@ -70,11 +70,17 @@ n_gt = 0
 correct = 0
 
 print('Compute mAP...')
+# TODO: add class conversion
+# TODO: ignore objs with area < thr
 
 outputs = []
 targets = None
 APs = []
-for batch_i, (_, imgs, targets) in enumerate(dataloader):
+scores = {
+    cls: {x: 0 for x in ["tp", "fp", "fn"]} for cls in names
+}
+
+for batch_i, (paths, imgs, targets) in enumerate(dataloader):
     if batch_i == opt.batch_count:
         break
 
@@ -91,21 +97,40 @@ for batch_i, (_, imgs, targets) in enumerate(dataloader):
 
         # Get labels for sample where width is not zero (dummies)
         annotations = targets[sample_i, targets[sample_i, :, 3] != 0]
+
+        # Ignore labels with area < thr
+        if annotations.size(0) > 0:
+            area = annotations[:, 3] * annotations[:, 4]
+            annotations = annotations[area >= opt.area_thres]
+            if annotations.size(0) == 0:
+                print("[%4d: %4d] All objs have area < %f, continuing..." % (batch_i, sample_i, opt.area_thres))
+                continue
+
         # Extract detections
         detections = output[sample_i]
 
         if detections is None:
-            # If there are no detections but there are annotations mask as zero AP
+            # If there are no detections but there are annotations mark as zero AP
             if annotations.size(0) != 0:
+                for a in annotations:
+                    scores[names[int(a[0])]]['fn'] += 1
                 APs.append(0)
             continue
 
         # Get detections sorted by decreasing confidence scores
         detections = detections[np.argsort(-detections[:, 4])]
 
+        # TODO: class conversion
+        # TODO for trained cls not in test (where there are no gt anyways)
+        for i in [0, 3]:
+            detections = detections[detections[..., -1] != i]
+        # TODO
+
         # If no annotations add number of detections as incorrect
         if annotations.size(0) == 0:
             correct.extend([0 for _ in range(len(detections))])
+            for d in detections:
+                scores[names[int(d[-1])]]['fp'] += 1
         else:
             # Extract target boxes as (x1, y1, x2, y2)
             target_boxes = torch.FloatTensor(annotations[:, 1:].shape)
@@ -124,28 +149,38 @@ for batch_i, (_, imgs, targets) in enumerate(dataloader):
                 # Extract index of largest overlap
                 best_i = np.argmax(iou)
                 # If overlap exceeds threshold and classification is correct mark as correct
-                if iou[best_i] > opt.iou_thres and obj_pred == annotations[best_i, 0] and best_i not in detected:
+                if iou[best_i] >= opt.iou_thres and obj_pred == annotations[best_i, 0] and best_i not in detected:
                     correct.append(1)
                     detected.append(best_i)
+                    scores[names[int(obj_pred)]]['tp'] += 1
                 else:
                     correct.append(0)
+                    scores[names[int(obj_pred)]]['fp'] += 1
 
         # Extract true and false positives
         true_positives = np.array(correct)
         false_positives = 1 - true_positives
 
         # Compute cumulative false positives and true positives
-        false_positives = np.cumsum(false_positives)
         true_positives = np.cumsum(true_positives)
+        false_positives = np.cumsum(false_positives)
 
         # Compute recall and precision at all ranks
-        recall = true_positives / annotations.size(0) if annotations.size(0) else true_positives
         precision = true_positives / np.maximum(true_positives + false_positives, np.finfo(np.float64).eps)
+        recall = true_positives / annotations.size(0) if annotations.size(0) else true_positives
 
         # Compute average precision
         AP = compute_ap(recall, precision)
         APs.append(AP)
 
         print("+ Sample [%d/%d] AP: %.4f (%.4f)" % (len(APs), len(dataset), AP, np.mean(APs)))
+        for cls, res in scores.items():
+            tp, fp, fn = res['tp'], res['fp'], res['fn']
+
+            p = 1.0 if fp == 0 else tp / (tp + fp)
+            r = 1.0 if fn == 0 else tp / (tp + fn)
+
+            print("\t %20s: tp %4d fp %4d fn %4d p %.3f r %.3f" %
+                  (cls, tp, fp, fn, p, r))
 
 print("Mean Average Precision: %.4f" % np.mean(APs))

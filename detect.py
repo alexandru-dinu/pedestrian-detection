@@ -1,24 +1,14 @@
 from __future__ import division
 
-from models import *
-from utils.utils import *
-from utils.datasets import *
-
-import os
-import sys
-import time
-import datetime
 import argparse
+import datetime
 
-import torch
-from torch.utils.data import DataLoader
-from torchvision import datasets
-from torch.autograd import Variable
-
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.ticker import NullLocator
 import cv2
+from torch.utils.data import DataLoader
+
+from models import *
+from utils.datasets import *
+from utils.utils import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', type=int, default=1, help='size of the batches')
@@ -70,7 +60,7 @@ print("-" * 80)
 print("Model loading done")
 
 # Get dataloader
-dataset = ListDataset(test_path)
+dataset = ListDataset(test_path, img_size=img_size)
 dataloader = torch.utils.data.DataLoader(
     dataset,
     batch_size=opt.batch_size, shuffle=opt.shuffle, num_workers=opt.n_cpu
@@ -107,15 +97,11 @@ for batch_i, (img_paths, input_imgs, _) in enumerate(dataloader):
     imgs.extend(img_paths)
     img_detections.extend(detections)
 
-# Bounding-box colors
-cmap = plt.get_cmap('tab20b')
-colors = [cmap(i) for i in np.linspace(0, 1, 20)]
-
 print('\nSaving images:\n')
 
 # Iterate through images and save plot of detections
 for img_idx, (path, detections) in enumerate(zip(imgs, img_detections)):
-    print("\nImage: '%s'" % path)
+    print("\n[%3d]Image: '%s'" % (img_idx, path))
 
     img = cv2.imread(path)
 
@@ -142,10 +128,10 @@ for img_idx, (path, detections) in enumerate(zip(imgs, img_detections)):
             color = bbox_colors[int(np.where(unique_labels == int(cls_pred))[0])]
 
             # draw bbox over image
-            cv2.rectangle(img, (x1, y1), (x2, y2), color, 5)
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
 
             # add label
-            cv2.putText(img, str(int(cls_pred)), (x1, y1 - 3), FONT, 1, (255, 255, 255), 2)
+            cv2.putText(img, str(int(cls_pred)), (x1, y1 - 3), FONT, 1, (255, 255, 255), 1)
 
             print(
                 '\t+ Coords: [%4d, %4d, %4d, %4d], Class: %s, ObjConf: %.5f, ClassProb: %.5f' % \
