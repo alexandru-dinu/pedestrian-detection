@@ -1,72 +1,83 @@
 from __future__ import division
 
+import argparse
+
+from torch.utils.data import DataLoader
+
 from models import *
-from utils.utils import *
 from utils.datasets import *
 from utils.parse_config import *
-
-import os
-import sys
-import time
-import datetime
-import argparse
-from tqdm import tqdm
-
-import torch
-from torch.utils.data import DataLoader
-from torchvision import datasets
-from torchvision import transforms
-from torch.autograd import Variable
-import torch.optim as optim
+from utils.utils import *
+from coco_conv import coco_to_udacity
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--epochs', type=int, default=200, help='number of epochs')
-parser.add_argument('--batch_size', type=int, default=16, help='size of each image batch')
+parser.add_argument('--batch_size', type=int, default=1, help='size of each image batch')
+parser.add_argument('--batch_count', type=int, default=10, help="num batches to pass through")
 parser.add_argument('--model_config_path', type=str, default='config/yolov3.cfg', help='path to model config file')
 parser.add_argument('--data_config_path', type=str, default='config/coco.data', help='path to data config file')
 parser.add_argument('--weights_path', type=str, default='weights/yolov3.weights', help='path to weights file')
-parser.add_argument('--class_path', type=str, default='data/coco.names', help='path to class label file')
 parser.add_argument('--iou_thres', type=float, default=0.5, help='iou threshold required to qualify as detected')
 parser.add_argument('--conf_thres', type=float, default=0.5, help='object confidence threshold')
 parser.add_argument('--nms_thres', type=float, default=0.45, help='iou thresshold for non-maximum suppression')
 parser.add_argument('--n_cpu', type=int, default=0, help='number of cpu threads to use during batch generation')
-parser.add_argument('--img_size', type=int, default=416, help='size of each image dimension')
-parser.add_argument('--use_cuda', type=bool, default=True, help='whether to use cuda if available')
+parser.add_argument('--use_cuda', action="store_true", help='whether to use cuda if available')
+parser.add_argument('--shuffle', action="store_true")
 opt = parser.parse_args()
-print(opt)
+
+for x in opt.__dict__:
+    print("%25s: %s" % (x, opt.__dict__[x]))
+print("-" * 80)
 
 cuda = torch.cuda.is_available() and opt.use_cuda
 
 # Get data configuration
-data_config     = parse_data_config(opt.data_config_path)
-test_path       = data_config['valid']
-num_classes     = int(data_config['classes'])
+data_config = parse_data_config(opt.data_config_path)
+test_path = data_config['valid']
+num_classes = int(data_config['classes'])
+names = data_config['names']
+
+for x, y in data_config.items():
+    print("%25s: %s" % (x, y))
+print("-" * 80)
 
 # Initiate model
 model = Darknet(opt.model_config_path)
 model.load_weights(opt.weights_path)
 
-if cuda:
-    model = model.cuda()
-
+model.cuda()
 model.eval()
+
+img_size = int(model.hyperparams['height'])
+
+for x, y in model.hyperparams.items():
+    print("%25s: %s" % (x, y))
+print("-" * 80)
+
+print("Model loading done")
 
 # Get dataloader
 dataset = ListDataset(test_path)
-dataloader = torch.utils.data.DataLoader(dataset,
-    batch_size=opt.batch_size, shuffle=False, num_workers=opt.n_cpu)
+dataloader = torch.utils.data.DataLoader(
+    dataset,
+    batch_size=opt.batch_size, shuffle=opt.shuffle, num_workers=opt.n_cpu
+)
+
+print("Dataset setup done")
 
 Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 
 n_gt = 0
 correct = 0
 
-print ('Compute mAP...')
+print('Compute mAP...')
 
 outputs = []
 targets = None
 APs = []
 for batch_i, (_, imgs, targets) in enumerate(dataloader):
+    if batch_i == opt.batch_count:
+        break
+
     imgs = Variable(imgs.type(Tensor))
     targets = targets.type(Tensor)
 
@@ -102,7 +113,7 @@ for batch_i, (_, imgs, targets) in enumerate(dataloader):
             target_boxes[:, 1] = (annotations[:, 2] - annotations[:, 4] / 2)
             target_boxes[:, 2] = (annotations[:, 1] + annotations[:, 3] / 2)
             target_boxes[:, 3] = (annotations[:, 2] + annotations[:, 4] / 2)
-            target_boxes *= opt.img_size
+            target_boxes *= img_size
 
             detected = []
             for *pred_bbox, conf, obj_conf, obj_pred in detections:
@@ -120,21 +131,21 @@ for batch_i, (_, imgs, targets) in enumerate(dataloader):
                     correct.append(0)
 
         # Extract true and false positives
-        true_positives  = np.array(correct)
+        true_positives = np.array(correct)
         false_positives = 1 - true_positives
 
         # Compute cumulative false positives and true positives
         false_positives = np.cumsum(false_positives)
-        true_positives  = np.cumsum(true_positives)
+        true_positives = np.cumsum(true_positives)
 
         # Compute recall and precision at all ranks
-        recall    = true_positives / annotations.size(0) if annotations.size(0) else true_positives
+        recall = true_positives / annotations.size(0) if annotations.size(0) else true_positives
         precision = true_positives / np.maximum(true_positives + false_positives, np.finfo(np.float64).eps)
 
         # Compute average precision
         AP = compute_ap(recall, precision)
         APs.append(AP)
 
-        print ("+ Sample [%d/%d] AP: %.4f (%.4f)" % (len(APs), len(dataset), AP, np.mean(APs)))
+        print("+ Sample [%d/%d] AP: %.4f (%.4f)" % (len(APs), len(dataset), AP, np.mean(APs)))
 
 print("Mean Average Precision: %.4f" % np.mean(APs))
