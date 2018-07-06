@@ -23,7 +23,7 @@ for x in opt.__dict__:
 print("-" * 80)
 
 FONT = cv2.FONT_HERSHEY_TRIPLEX
-COLORS = [tuple(255 * np.array(plt.get_cmap('tab20b')(i)[:-1])) for i in np.linspace(0, 1, 20)]
+COLORS = [tuple(255 * np.array(plt.get_cmap('tab20')(i)[:-1])) for i in np.linspace(0, 1, 20)]
 
 cuda = torch.cuda.is_available() and opt.use_cuda
 Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
