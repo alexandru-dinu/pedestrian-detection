@@ -1,3 +1,4 @@
+*.png
 launch_*.sh
 detections
 darknet_cfg
