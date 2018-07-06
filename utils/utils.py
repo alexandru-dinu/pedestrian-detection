@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
+
 def load_classes(path):
     """
     Loads class labels at 'path'
@@ -18,6 +19,7 @@ def load_classes(path):
     names = fp.read().split("\n")[:-1]
     return names
 
+
 def weights_init_normal(m):
     classname = m.__class__.__name__
     if classname.find('Conv') != -1:
@@ -25,6 +27,7 @@ def weights_init_normal(m):
     elif classname.find('BatchNorm2d') != -1:
         torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
         torch.nn.init.constant_(m.bias.data, 0.0)
+
 
 def compute_ap(recall, precision):
     """ Compute the average precision, given the recall and precision curves.
@@ -53,6 +56,7 @@ def compute_ap(recall, precision):
     ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
     return ap
 
+
 def bbox_iou(box1, box2, x1y1x2y2=True):
     """
     Returns the IoU of two bounding boxes
@@ -65,17 +69,17 @@ def bbox_iou(box1, box2, x1y1x2y2=True):
         b2_y1, b2_y2 = box2[:, 1] - box2[:, 3] / 2, box2[:, 1] + box2[:, 3] / 2
     else:
         # Get the coordinates of bounding boxes
-        b1_x1, b1_y1, b1_x2, b1_y2 = box1[:,0], box1[:,1], box1[:,2], box1[:,3]
-        b2_x1, b2_y1, b2_x2, b2_y2 = box2[:,0], box2[:,1], box2[:,2], box2[:,3]
+        b1_x1, b1_y1, b1_x2, b1_y2 = box1[:, 0], box1[:, 1], box1[:, 2], box1[:, 3]
+        b2_x1, b2_y1, b2_x2, b2_y2 = box2[:, 0], box2[:, 1], box2[:, 2], box2[:, 3]
 
     # get the corrdinates of the intersection rectangle
-    inter_rect_x1 =  torch.max(b1_x1, b2_x1)
-    inter_rect_y1 =  torch.max(b1_y1, b2_y1)
-    inter_rect_x2 =  torch.min(b1_x2, b2_x2)
-    inter_rect_y2 =  torch.min(b1_y2, b2_y2)
+    inter_rect_x1 = torch.max(b1_x1, b2_x1)
+    inter_rect_y1 = torch.max(b1_y1, b2_y1)
+    inter_rect_x2 = torch.min(b1_x2, b2_x2)
+    inter_rect_y2 = torch.min(b1_y2, b2_y2)
     # Intersection area
-    inter_area =    torch.clamp(inter_rect_x2 - inter_rect_x1 + 1, min=0) * \
-                    torch.clamp(inter_rect_y2 - inter_rect_y1 + 1, min=0)
+    inter_area = torch.clamp(inter_rect_x2 - inter_rect_x1 + 1, min=0) * \
+                 torch.clamp(inter_rect_y2 - inter_rect_y1 + 1, min=0)
     # Union Area
     b1_area = (b1_x2 - b1_x1 + 1) * (b1_y2 - b1_y1 + 1)
     b2_area = (b2_x2 - b2_x1 + 1) * (b2_y2 - b2_y1 + 1)
@@ -110,7 +114,7 @@ def non_max_suppression(prediction, num_classes, conf_thres=0.5, nms_thres=0.4):
         if not image_pred.size(0):
             continue
         # Get score and class with highest confidence
-        class_conf, class_pred = torch.max(image_pred[:, 5:5 + num_classes], 1,  keepdim=True)
+        class_conf, class_pred = torch.max(image_pred[:, 5:5 + num_classes], 1, keepdim=True)
         # Detections ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
         detections = torch.cat((image_pred[:, :5], class_conf.float(), class_pred.float()), 1)
         # Iterate through all predicted classes
@@ -138,23 +142,25 @@ def non_max_suppression(prediction, num_classes, conf_thres=0.5, nms_thres=0.4):
 
             max_detections = torch.cat(max_detections).data
             # Add max detections to outputs
-            output[image_i] = max_detections if output[image_i] is None else torch.cat((output[image_i], max_detections))
+            output[image_i] = max_detections if output[image_i] is None else torch.cat(
+                (output[image_i], max_detections))
 
     return output
+
 
 def build_targets(pred_boxes, target, anchors, num_anchors, num_classes, dim, ignore_thres, img_dim):
     nB = target.size(0)
     nA = num_anchors
     nC = num_classes
     dim = dim
-    mask        = torch.zeros(nB, nA, dim, dim)
-    conf_mask   = torch.ones(nB, nA, dim, dim)
-    tx          = torch.zeros(nB, nA, dim, dim)
-    ty          = torch.zeros(nB, nA, dim, dim)
-    tw          = torch.zeros(nB, nA, dim, dim)
-    th          = torch.zeros(nB, nA, dim, dim)
-    tconf       = torch.zeros(nB, nA, dim, dim)
-    tcls        = torch.zeros(nB, nA, dim, dim, num_classes)
+    mask = torch.zeros(nB, nA, dim, dim)
+    conf_mask = torch.ones(nB, nA, dim, dim)
+    tx = torch.zeros(nB, nA, dim, dim)
+    ty = torch.zeros(nB, nA, dim, dim)
+    tw = torch.zeros(nB, nA, dim, dim)
+    th = torch.zeros(nB, nA, dim, dim)
+    tconf = torch.zeros(nB, nA, dim, dim)
+    tcls = torch.zeros(nB, nA, dim, dim, num_classes)
 
     nGT = 0
     nCorrect = 0
@@ -192,8 +198,8 @@ def build_targets(pred_boxes, target, anchors, num_anchors, num_classes, dim, ig
             tx[b, best_n, gj, gi] = gx - gi
             ty[b, best_n, gj, gi] = gy - gj
             # Width and height
-            tw[b, best_n, gj, gi] = math.log(gw/anchors[best_n][0] + 1e-16)
-            th[b, best_n, gj, gi] = math.log(gh/anchors[best_n][1] + 1e-16)
+            tw[b, best_n, gj, gi] = math.log(gw / anchors[best_n][0] + 1e-16)
+            th[b, best_n, gj, gi] = math.log(gh / anchors[best_n][1] + 1e-16)
             # One-hot encoding of label
             tcls[b, best_n, gj, gi, int(target[b, t, 0])] = 1
             # Calculate iou between ground truth and best matching prediction
@@ -204,6 +210,7 @@ def build_targets(pred_boxes, target, anchors, num_anchors, num_classes, dim, ig
                 nCorrect += 1
 
     return nGT, nCorrect, mask, conf_mask, tx, ty, tw, th, tconf, tcls
+
 
 def to_categorical(y, num_classes):
     """ 1-hot encodes a tensor """
