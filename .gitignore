@@ -1,3 +1,4 @@
+*.pickle
 *.png
 launch_*.sh
 detections

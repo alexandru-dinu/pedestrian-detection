@@ -10,8 +10,8 @@ have ratios >= --w_thr, --h_thr
 parser = argparse.ArgumentParser()
 parser.add_argument("--imgs_txt", type=str, required=True, help="txt file with image paths")
 parser.add_argument("--cls", type=int, required=True, help="target class")
-parser.add_argument("--w_thr", type=float, required=True, help="width threshold (0,1)")
-parser.add_argument("--h_thr", type=float, required=True, help="height threshold (0,1)")
+parser.add_argument("--w_thr", type=float, default=0, help="width threshold (0,1)")
+parser.add_argument("--h_thr", type=float, default=0, help="height threshold (0,1)")
 args = parser.parse_args()
 
 images = [x.strip() for x in open(args.imgs_txt, "r").readlines()]
