@@ -12,7 +12,6 @@ from utils.parse_config import *
 from utils.utils import *
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--batch_size', type=int, default=1, help='size of each image batch')
 parser.add_argument('--batch_count', type=int, default=10, help="num batches to pass through")
 parser.add_argument('--model_config_path', type=str, default='config/yolov3.cfg', help='path to model config file')
 parser.add_argument('--data_config_path', type=str, default='config/coco.data', help='path to data config file')
@@ -65,6 +64,7 @@ model.load_weights(opt.weights_path)
 model.cuda()
 model.eval()
 
+batch_size = int(model.hyperparams['batch'])
 img_size = int(model.hyperparams['height'])
 
 for x, y in model.hyperparams.items():
@@ -76,7 +76,7 @@ print("Model loading done")
 dataset = ListDataset(test_path, img_size=img_size)
 dataloader = torch.utils.data.DataLoader(
 	dataset,
-	batch_size=opt.batch_size, shuffle=opt.shuffle, num_workers=opt.n_cpu
+	batch_size=batch_size, shuffle=opt.shuffle, num_workers=opt.n_cpu
 )
 
 real_img_w, real_img_h = dataset.get_real_img_shape()
@@ -156,6 +156,7 @@ def save_confusion_matrix(cm):
 # perform testing
 for batch_i, (paths, imgs, targets) in enumerate(dataloader):
 	start = time.time()
+	out_str = ""
 
 	if batch_i == opt.batch_count:
 		break
@@ -173,6 +174,12 @@ for batch_i, (paths, imgs, targets) in enumerate(dataloader):
 
 		# Get labels for sample where width is not zero (dummies)
 		annotations = targets[sample_i, targets[sample_i, :, 3] != 0]
+
+		# remove annotations with area < thr
+		if annotations.size(0) > 0:
+			areas = annotations[:, 3] * annotations[:, 4]
+			annotations = annotations[areas >= opt.area_thres]
+
 		annotation_count = annotations.size(0)
 
 		# Extract detections
@@ -201,12 +208,18 @@ for batch_i, (paths, imgs, targets) in enumerate(dataloader):
 				num_instances[i] = annotations[annotations[:, 0] == i].shape[0]
 				all_instances[i] += num_instances[i]
 		assert sum(num_instances.values()) == annotation_count
+
+		# will contain each detected gt
 		detected = []
 
 		# If no annotations add number of detections as incorrect
 		if annotation_count == 0:
 			correct.extend([0 for _ in range(len(detections))])
 			for d in detections:
+				x1, y1, x2, y2 = Tensor(d[:4]).view(1, -1)[0]
+				area = (x2 - x1) * (y2 - y1) / (img_size * img_size)
+				if area < opt.area_thres: continue
+
 				all_scores[valid_names[int(d[-1])]]['fp'] += 1
 				errors[valid_names[int(d[-1])]]['fp']['no_gt'] += 1
 		else:
@@ -220,6 +233,11 @@ for batch_i, (paths, imgs, targets) in enumerate(dataloader):
 
 			for *pred_bbox, conf, obj_conf, obj_pred in detections:
 				pred_bbox = torch.FloatTensor(pred_bbox).view(1, -1)
+
+				# ignore detections with area < thr
+				x1, y1, x2, y2 = pred_bbox[0]
+				area = (x2 - x1) * (y2 - y1) / (img_size * img_size)
+				if area < opt.area_thres: continue
 
 				# Compute iou with target boxes
 				iou = bbox_iou(pred_bbox, target_boxes)
@@ -273,9 +291,9 @@ for batch_i, (paths, imgs, targets) in enumerate(dataloader):
 		APs.append(AP)
 
 		# print stats for current sample
-		print("+ Sample [%d/%d] Path: %s" % (len(APs), len(dataset), paths))
-		print("+ AP: %.4f (%.4f)" % (AP, np.mean(APs)))
-		print("+ [tp %2d] [fp %2d] [fn %2d] [all %2d]" % (current_tp, current_fp, current_fn, annotation_count))
+		out_str += "+ Sample [%5d/%5d] Paths: %s\n" % (len(APs), len(dataset), paths)
+		out_str += "+ AP: %.4f (%.4f)\n" % (AP, np.mean(APs))
+		out_str += "+ [tp %2d] [fp %2d] [fn %2d] [all %2d]\n" % (current_tp, current_fp, current_fn, annotation_count)
 
 		for cls, res in all_scores.items():
 			tp, fp, fn = res['tp'], res['fp'], res['fn']
@@ -286,14 +304,16 @@ for batch_i, (paths, imgs, targets) in enumerate(dataloader):
 			f1 = 0 if p + r == 0 else 2 * p * r / (p + r)
 
 			stats_str = "\t%15s: [tp %5d] [fp %5d] [fn %5d] [p %.3f] [r %.3f] [f1 %.3f] " + \
-						"[no_gt %5d] [iou %5d] [cls %5d] [mult %5d] [area %.3f]"
-			print(stats_str % (
+						"[no_gt %5d] [iou %5d] [cls %5d] [mult %5d] [area %f]\n"
+			out_str += stats_str % (
 				cls, tp, fp, fn, p, r, f1,
-				err_fp['no_gt'], err_fp['iou'], err_fp['cls'], err_fp['mult'], np.mean(err_fn) * 100
-			))
+				err_fp['no_gt'], err_fp['iou'], err_fp['cls'], err_fp['mult'], np.mean(err_fn)
+			)
 
-	print("+ Batch took %f seconds" % (time.time() - start))
+	out_str += "+ Batch took %f seconds\n" % (time.time() - start)
+	print(out_str)
 
 save_confusion_matrix(confusion)
+print("Confusion matrix done")
 
 print("Mean Average Precision: %f" % np.mean(APs))
