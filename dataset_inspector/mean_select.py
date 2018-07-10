@@ -6,8 +6,8 @@ import cv2
 from tqdm import tqdm
 
 """
-Returns a subset of images (from --imgs_txt) where objects from --cls
-have ratios >= --w_thr, --h_thr
+Exports a pickle dictionary with the images sorted by mean
+A histogram can be applied (at different thresholds) to differentiate between timeofday
 """
 
 parser = argparse.ArgumentParser()
