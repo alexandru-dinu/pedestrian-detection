@@ -1,30 +1,22 @@
 from __future__ import division
 
+import argparse
+import timeit
+
+import torch.optim as optim
+from torch.utils.data import DataLoader
+
 from models import *
-from utils.utils import *
 from utils.datasets import *
 from utils.parse_config import *
-
-import os
-import sys
-import time
-import datetime
-import argparse
-
-import torch
-from torch.utils.data import DataLoader
-from torchvision import datasets
-from torchvision import transforms
-from torch.autograd import Variable
-import torch.optim as optim
+from utils.utils import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--num_epochs', type=int, default=30, help='number of num_epochs')
 parser.add_argument('--model_config_path', type=str, default='config/yolov3.cfg', help='path to model config file')
 parser.add_argument('--data_config_path', type=str, default='config/coco.data', help='path to data config file')
 parser.add_argument('--weights_path', type=str, default='weights/yolov3.weights', help='path to weights file')
-parser.add_argument('--conf_thres', type=float, default=0.8, help='object confidence threshold')
-parser.add_argument('--nms_thres', type=float, default=0.4, help='iou thresshold for non-maximum suppression')
+parser.add_argument('--freeze_point', type=int, default=-1, help="-1 to load all weights")
 parser.add_argument('--n_cpu', type=int, default=0, help='number of cpu threads to use during batch generation')
 parser.add_argument('--checkpoint_interval', type=int, default=1)
 parser.add_argument('--checkpoint_dir', type=str, default='checkpoints')
@@ -51,9 +43,9 @@ for x, y in data_config.items():
 print("-" * 80)
 
 # Model loading
-model = Darknet(opt.model_config_path)
-# model.load_weights(opt.weights_path)
-model.apply(weights_init_normal)
+model = Darknet(opt.model_config_path, freeze_point=opt.freeze_point)
+model.load_weights(opt.weights_path)
+model.freeze_layers()
 
 model.cuda()
 model.train()
@@ -69,7 +61,11 @@ momentum = float(model.hyperparams['momentum'])
 decay = float(model.hyperparams['decay'])
 burn_in = int(model.hyperparams['burn_in'])
 batch_size = int(model.hyperparams['batch'])
+subdivisions = int(model.hyperparams['subdivisions'])
 img_size = int(model.hyperparams['height'])
+sub_batch_size = batch_size // subdivisions
+
+assert batch_size % subdivisions == 0, "Wrong bs/sd config"
 
 # Get dataloader
 dataset = ListDataset(train_path, img_size=img_size)
@@ -79,34 +75,52 @@ dataloader = torch.utils.data.DataLoader(
 print("Dataset setup done")
 
 # Setup optimizer TODO
+learnable_params = filter(lambda p: p.requires_grad, model.parameters())
+
 optimizer = optim.SGD(
-	model.parameters(),
+	learnable_params,
 	lr=learning_rate, momentum=momentum, dampening=0, weight_decay=decay
 )
 
+print("Start training")
+
 # Perform training
 for epoch in range(opt.num_epochs):
+
 	for batch_i, (_, imgs, targets) in enumerate(dataloader):
+		start = timeit.default_timer()
+
 		imgs = Variable(imgs.type(Tensor))
 		targets = Variable(targets.type(Tensor), requires_grad=False)
 
 		optimizer.zero_grad()
+		loss = 0
 
-		loss = model(imgs, targets)
+		for i in range(subdivisions):
+			sub_imgs = imgs[i * sub_batch_size:(i + 1) * sub_batch_size]
+			sub_targets = targets[i * sub_batch_size:(i + 1) * sub_batch_size]
+			loss += model(sub_imgs, sub_targets)
+
+		loss /= subdivisions
 
 		loss.backward()
 		optimizer.step()
 
+		info_str = "+ [Epoch %2d/%2d, Batch %5d/%5d] " + \
+				   "[Losses: total %f, x %f, y %f, w %f, h %f, conf %f, cls %f, recall: %.5f] " + \
+				   "[Took %2.6f]"
 		print(
-			'[Epoch %2d/%2d, Batch %5d/%5d] [Losses: x %f, y %f, w %f, h %f, conf %f, cls %f, total %f, recall: %.5f]' %
-			(epoch, opt.num_epochs, batch_i, len(dataloader),
-			 model.losses['x'], model.losses['y'], model.losses['w'],
-			 model.losses['h'], model.losses['conf'], model.losses['cls'],
-			 loss.item(), model.losses['recall']))
+			info_str % (
+				epoch, opt.num_epochs, batch_i, len(dataloader),
+				loss.item(), *[model.losses[x] for x in model.loss_names],
+				timeit.default_timer() - start
+			)
+		)
 
 		model.seen += imgs.size(0)
 
 	# TODO: validate model
 
 	if epoch % opt.checkpoint_interval == 0:
-		model.save_weights('%s/%d.weights' % (opt.checkpoint_dir, epoch))
+		print("Saving weights for [epoch %2d]" % epoch)
+	model.save_weights('%s/%d.weights' % (opt.checkpoint_dir, epoch))
