@@ -128,7 +128,11 @@ class ListDataset(Dataset):
 
 		labels = None
 		if os.path.exists(label_path):
-			labels = np.loadtxt(label_path).reshape(-1, 5)
+			# to suppress numpy's warning
+			if os.stat(label_path).st_size == 0:
+				labels = np.zeros((0, 5))
+			else:
+				labels = np.loadtxt(label_path).reshape(-1, 5)
 			# Extract coordinates for unpadded + unscaled image
 			x1 = w * (labels[:, 1] - labels[:, 3] / 2)
 			y1 = h * (labels[:, 2] - labels[:, 4] / 2)
