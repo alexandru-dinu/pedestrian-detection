@@ -149,6 +149,7 @@ def non_max_suppression(prediction, num_classes, conf_thres=0.5, nms_thres=0.4):
 
 
 def build_targets(pred_boxes, target, anchors, num_anchors, num_classes, dim, ignore_thres, img_dim):
+	# TODO: optimize from older yolov3.custom
 	nB = target.size(0)
 	nA = num_anchors
 	nC = num_classes
@@ -198,8 +199,8 @@ def build_targets(pred_boxes, target, anchors, num_anchors, num_classes, dim, ig
 			tx[b, best_n, gj, gi] = gx - gi
 			ty[b, best_n, gj, gi] = gy - gj
 			# Width and height
-			tw[b, best_n, gj, gi] = math.log(gw / anchors[best_n][0] + 1e-16)
-			th[b, best_n, gj, gi] = math.log(gh / anchors[best_n][1] + 1e-16)
+			tw[b, best_n, gj, gi] = torch.log(gw / anchors[best_n][0] + 1e-16)
+			th[b, best_n, gj, gi] = torch.log(gh / anchors[best_n][1] + 1e-16)
 			# One-hot encoding of label
 			tcls[b, best_n, gj, gi, int(target[b, t, 0])] = 1
 			# Calculate iou between ground truth and best matching prediction
@@ -210,8 +211,3 @@ def build_targets(pred_boxes, target, anchors, num_anchors, num_classes, dim, ig
 				nCorrect += 1
 
 	return nGT, nCorrect, mask, conf_mask, tx, ty, tw, th, tconf, tcls
-
-
-def to_categorical(y, num_classes):
-	""" 1-hot encodes a tensor """
-	return torch.from_numpy(np.eye(num_classes, dtype='uint8')[y])
