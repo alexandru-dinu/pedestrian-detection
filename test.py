@@ -60,7 +60,6 @@ print("-" * 80)
 # Model loading
 model = Darknet(opt.model_config_path)
 model.load_weights(opt.weights_path)
-
 model.cuda()
 model.eval()
 
@@ -85,14 +84,18 @@ print("Dataset setup done")
 
 print('Compute mAP...')
 
+# stats-keeping
 outputs, APs = [], []
 targets = None
+
 all_scores = {
 	cls: {x: 0 for x in ["tp", "fp", "fn"]} for cls in valid_names
 }
+
 all_instances = {
 	x: 0 for x in range(len(valid_names))
 }
+
 errors = {
 	cls: {
 		# error sources of FPs
@@ -102,6 +105,7 @@ errors = {
 	}
 	for cls in valid_names
 }
+
 confusion = np.zeros((len(valid_names), len(valid_names)))
 
 

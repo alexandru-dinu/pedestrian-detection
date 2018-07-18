@@ -26,20 +26,20 @@ def create_modules(module_defs):
 			filters = int(module_def['filters'])
 			kernel_size = int(module_def['size'])
 			pad = (kernel_size - 1) // 2 if int(module_def['pad']) else 0
-			modules.add_module('conv_%d' % i, nn.Conv2d(in_channels=output_filters[-1],
-														out_channels=filters,
-														kernel_size=kernel_size,
-														stride=int(module_def['stride']),
-														padding=pad,
-														bias=not bn))
+			modules.add_module('conv_%d' % i, nn.Conv2d(
+				in_channels=output_filters[-1],
+				out_channels=filters,
+				kernel_size=kernel_size,
+				stride=int(module_def['stride']),
+				padding=pad,
+				bias=not bn))
 			if bn:
 				modules.add_module('batch_norm_%d' % i, nn.BatchNorm2d(filters))
 			if module_def['activation'] == 'leaky':
 				modules.add_module('leaky_%d' % i, nn.LeakyReLU(0.1))
 
 		elif module_def['type'] == 'upsample':
-			upsample = nn.Upsample(scale_factor=int(module_def['stride']),
-								   mode='nearest')
+			upsample = nn.Upsample(scale_factor=int(module_def['stride']), mode='nearest')
 			modules.add_module('upsample_%d' % i, upsample)
 
 		elif module_def['type'] == 'route':
@@ -86,21 +86,24 @@ class YOLOLayer(nn.Module):
 		self.num_classes = num_classes
 		self.bbox_attrs = 5 + num_classes
 		self.img_dim = img_dim
-		self.ignore_thres = 0.5
-		self.lambda_coord = 1
 
-		self.mse_loss = nn.MSELoss()
-		self.bce_loss = nn.BCELoss()
+		# from paper
+		self.lambda_coord = 5
+		self.lambda_noobj = 0.5
+
+		self.mse_loss = nn.MSELoss().cuda()
+		self.bce_loss = nn.BCELoss().cuda()
 
 	def forward(self, x, targets=None):
-		bs = x.size(0)
-		g_dim = x.size(2)
-		stride = self.img_dim / g_dim
+		# x.size == bs x (3*(5+C)) x scale x scale
+		bs, _, scale, _ = x.size()
+
+		stride = self.img_dim / scale
 		# Tensors for cuda support
 		FloatTensor = torch.cuda.FloatTensor if x.is_cuda else torch.FloatTensor
 		LongTensor = torch.cuda.LongTensor if x.is_cuda else torch.LongTensor
 
-		prediction = x.view(bs, self.num_anchors, self.bbox_attrs, g_dim, g_dim).permute(0, 1, 3, 4, 2).contiguous()
+		prediction = x.view(bs, self.num_anchors, self.bbox_attrs, scale, scale).permute(0, 1, 3, 4, 2).contiguous()
 
 		# Get outputs
 		x = torch.sigmoid(prediction[..., 0])  # Center x
@@ -111,15 +114,15 @@ class YOLOLayer(nn.Module):
 		pred_cls = torch.sigmoid(prediction[..., 5:])  # Cls pred.
 
 		# Calculate offsets for each grid
-		grid_x = torch.linspace(0, g_dim - 1, g_dim).repeat(g_dim, 1).repeat(bs * self.num_anchors, 1, 1).view(
+		grid_x = torch.linspace(0, scale - 1, scale).repeat(scale, 1).repeat(bs * self.num_anchors, 1, 1).view(
 			x.shape).type(FloatTensor)
-		grid_y = torch.linspace(0, g_dim - 1, g_dim).repeat(g_dim, 1).t().repeat(bs * self.num_anchors, 1, 1).view(
+		grid_y = torch.linspace(0, scale - 1, scale).repeat(scale, 1).t().repeat(bs * self.num_anchors, 1, 1).view(
 			y.shape).type(FloatTensor)
 		scaled_anchors = [(a_w / stride, a_h / stride) for a_w, a_h in self.anchors]
 		anchor_w = FloatTensor(scaled_anchors).index_select(1, LongTensor([0]))
 		anchor_h = FloatTensor(scaled_anchors).index_select(1, LongTensor([1]))
-		anchor_w = anchor_w.repeat(bs, 1).repeat(1, 1, g_dim * g_dim).view(w.shape)
-		anchor_h = anchor_h.repeat(bs, 1).repeat(1, 1, g_dim * g_dim).view(h.shape)
+		anchor_w = anchor_w.repeat(bs, 1).repeat(1, 1, scale * scale).view(w.shape)
+		anchor_h = anchor_h.repeat(bs, 1).repeat(1, 1, scale * scale).view(h.shape)
 
 		# Add offset and scale with anchors
 		pred_boxes = FloatTensor(prediction[..., :4].shape)
@@ -131,19 +134,12 @@ class YOLOLayer(nn.Module):
 		# Training
 		if targets is not None:
 
-			if x.is_cuda:
-				self.mse_loss = self.mse_loss.cuda()
-				self.bce_loss = self.bce_loss.cuda()
-
 			nGT, nCorrect, mask, conf_mask, tx, ty, tw, th, tconf, tcls = build_targets(
-				pred_boxes.cpu().data,
-				targets.cpu().data,
-				scaled_anchors,
-				self.num_anchors,
-				self.num_classes,
-				g_dim,
-				self.ignore_thres,
-				self.img_dim
+				pred_boxes=pred_boxes.cpu().data,
+				targets=targets.cpu().data,
+				anchors=scaled_anchors,
+				num_classes=self.num_classes,
+				scale=scale,
 			)
 
 			nProposals = int((conf > 0.25).sum().item())
@@ -163,11 +159,14 @@ class YOLOLayer(nn.Module):
 			tcls = Variable(tcls.type(FloatTensor), requires_grad=False)
 
 			# Mask outputs to ignore non-existing objects
-			loss_x = self.lambda_coord * self.bce_loss(x * mask, tx * mask)
-			loss_y = self.lambda_coord * self.bce_loss(y * mask, ty * mask)
+			loss_x = self.lambda_coord * self.mse_loss(x * mask, tx * mask) / 2
+			loss_y = self.lambda_coord * self.mse_loss(y * mask, ty * mask) / 2
 			loss_w = self.lambda_coord * self.mse_loss(w * mask, tw * mask) / 2
 			loss_h = self.lambda_coord * self.mse_loss(h * mask, th * mask) / 2
-			loss_conf = self.bce_loss(conf * conf_mask, tconf * conf_mask)
+
+			loss_conf = self.bce_loss(conf * conf_mask, tconf * conf_mask) + \
+						self.lambda_noobj * self.bce_loss(conf * (1 - conf_mask), tconf * (1 - mask))
+
 			loss_cls = self.bce_loss(pred_cls * cls_mask, tcls * cls_mask)
 
 			loss = loss_x + loss_y + loss_w + loss_h + loss_conf + loss_cls
@@ -177,15 +176,21 @@ class YOLOLayer(nn.Module):
 		else:
 			# If not in training phase return predictions
 			output = torch.cat(
-				(pred_boxes.view(bs, -1, 4) * stride, conf.view(bs, -1, 1), pred_cls.view(bs, -1, self.num_classes)),
-				-1)
+				(
+					pred_boxes.view(bs, -1, 4) * stride,
+					conf.view(bs, -1, 1),
+					pred_cls.view(bs, -1, self.num_classes)
+				),
+				dim=-1
+			)
+
 			return output.data
 
 
 class Darknet(nn.Module):
 	"""YOLOv3 object detection model"""
 
-	def __init__(self, config_path, freeze_point=75):
+	def __init__(self, config_path, freeze_point=-1):
 		super(Darknet, self).__init__()
 		self.module_defs = parse_model_config(config_path)
 		self.hyperparams, self.module_list = create_modules(self.module_defs)
@@ -202,17 +207,22 @@ class Darknet(nn.Module):
 	def forward(self, x, targets=None):
 		is_training = targets is not None
 		output = []
+
 		self.losses = defaultdict(float)
 		layer_outputs = []
+
 		for i, (module_def, module) in enumerate(zip(self.module_defs, self.module_list)):
 			if module_def['type'] in ['convolutional', 'upsample']:
 				x = module(x)
+
 			elif module_def['type'] == 'route':
 				layer_i = [int(x) for x in module_def['layers'].split(',')]
 				x = torch.cat([layer_outputs[i] for i in layer_i], 1)
+
 			elif module_def['type'] == 'shortcut':
 				layer_i = int(module_def['from'])
 				x = layer_outputs[-1] + layer_outputs[layer_i]
+
 			elif module_def['type'] == 'yolo':
 				# Train phase: get loss
 				if is_training:
@@ -229,18 +239,33 @@ class Darknet(nn.Module):
 		return sum(output) if is_training else torch.cat(output, 1)
 
 	def freeze_layers(self):
-		print("Freezing layers up to [%3d]" % self.freeze_point)
+		print("Freeze layers\t[%3d, %3d)" % (0, self.freeze_point))
 
-		for i in range(self.freeze_point):
-			for param in self.module_list[i].parameters():
-				param.requires_grad = False
-
-		# TEST TODO
 		for i in range(len(self.module_list)):
-			for p in self.module_list[i].parameters():
-				assert p.requires_grad == (i >= self.freeze_point)
+			for param in self.module_list[i].parameters():
+				param.requires_grad = (i >= self.freeze_point)
 
-	def load_weights(self, weights_path):
+	def init_layers(self):
+		print("Init layers\t[%3d, %3d]" % (self.freeze_point, len(self.module_list)))
+
+		for i, seq in enumerate(self.module_list[self.freeze_point:]):
+			for j, m in enumerate(seq):
+				classname = m.__class__.__name__
+				if classname.find('Conv') != -1:
+					torch.nn.init.normal_(m.weight.data, 0.0, 0.02)
+					print("init %4s [%3d/%3d]" % ("conv", self.freeze_point + i, j))
+				elif classname.find('BatchNorm2d') != -1:
+					torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
+					torch.nn.init.constant_(m.bias.data, 0.0)
+					print("init %4s [%3d/%3d]" % ("bn", self.freeze_point + i, j))
+
+	def debug(self):
+		for i, seq in enumerate(self.module_list):
+			for j, m in enumerate(seq):
+				if "YOLO" in m.__class__.__name__:
+					print("YOLO @ [%3d/%3d], num_classes = %3d" % (i, j, m.num_classes))
+
+	def load_weights(self, weights_path, upto=-1):
 		"""Parses and loads the weights stored in 'weights_path'"""
 
 		# Open the weights file
@@ -255,7 +280,7 @@ class Darknet(nn.Module):
 
 		ptr = 0
 		for i, (module_def, module) in enumerate(zip(self.module_defs, self.module_list)):
-			if i == self.freeze_point: break  # TODO: used for trainable weights
+			if i == upto: break
 
 			if module_def['type'] == 'convolutional':
 				conv_layer = module[0]
@@ -304,8 +329,6 @@ class Darknet(nn.Module):
 		self.header_info.tofile(fp)
 
 		for i, (module_def, module) in enumerate(modules):
-			if i == self.freeze_point: break  # TODO: placeholder
-
 			if module_def['type'] == 'convolutional':
 				conv_layer = module[0]
 
@@ -328,6 +351,6 @@ class Darknet(nn.Module):
 		fp.close()
 
 	def __str__(self):
-		s = "Darknet (img_size: %3d, fp: %3d)" % (self.img_size, self.freeze_point)
+		s = "Darknet [%5s] (img_size: %3d, fp: %3d)" % (self.mode, self.img_size, self.freeze_point)
 
 		return s
