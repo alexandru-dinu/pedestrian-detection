@@ -78,7 +78,7 @@ next, find the best overlapping anchor (one of the 3 default anchors ar this sca
 `mask[b, a, cy, cx] = 1`, i.e.: for batch `b`, the cell `cy, cx` is responsible for predicting the given ground truth,
 and the best overlapping anchor's index is `a`
 - network predicts `tx, ty, tw, th`; the final prediction is `bx, by, bw, bh` where the conversion formulas are:
-$$b_x = \sigma(t_x) + c_x \\ b_y = \sigma(t_y) + c_y \\ b_w = p_w e^{t_w} \\ b_h = p_h e^{t_h}$$
+`bx = sigma(tx) + cx, by = sigma(ty) + cy, bw = pw * exp(tw), bh = ph * exp(th)`
 
 ## Datasets
 - converted labels format: `<frame_id>.txt : [class rx ry rw rh]`
