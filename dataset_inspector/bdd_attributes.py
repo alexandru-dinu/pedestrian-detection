@@ -1,8 +1,17 @@
-import os
+import argparse
 import json
+import os
 from collections import defaultdict
 
-path = "/home/tempuser/workspace/dinu-rotaru/data/bdd/labels/100k"
+from utils.parse_config import parse_data_config
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--data_path", type=str, required=True)
+args = parser.parse_args()
+
+data_cfg = parse_data_config(args.data_path)
+
+path = "/home/alex/thesis-workspace/data/bdd/labels/100k"
 dirs = ["train", "val"]
 
 # attributes = weather / scene / timeofday
