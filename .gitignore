@@ -1,8 +1,11 @@
-*.pickle
-*.png
-launch_*.sh
+# symlinks
+cfgs
+weights
+
+# imgs
 detections
-darknet_cfg
+
+# misc
 .idea
 .DS_Store
 build

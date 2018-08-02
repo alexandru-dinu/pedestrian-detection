@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-coco_names_path = "/home/tempuser/workspace/dinu-rotaru/darknet/data/coco.names"
+coco_names_path = "cfgs/coco/coco.names"
 coco_names = [
 	x.strip() for x in open(coco_names_path, "r")
 ]
