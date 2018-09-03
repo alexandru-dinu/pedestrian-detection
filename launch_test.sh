@@ -8,7 +8,7 @@ CUDA_VISIBLE_DEVICES=$1 python test.py \
     --data_config_path ${CFGS}/$2/$2.data \
     --weights_path ${WEIGHTS}/$2/yolov3-$2_final.weights \
     --batch_count 256 \
-    --n_cpu 1 \
+    --n_cpu 4 \
     --conf_thres 0.3 \
     --nms_thres 0.4 \
     --iou_thres 0.5 \
