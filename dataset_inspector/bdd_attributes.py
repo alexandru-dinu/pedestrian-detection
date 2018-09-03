@@ -1,17 +1,14 @@
-import argparse
 import json
 import os
 from collections import defaultdict
 
-from utils.parse_config import parse_data_config
+# parser = argparse.ArgumentParser()
+# parser.add_argument("--data_path", type=str, required=True)
+# args = parser.parse_args()
+#
+# data_cfg = parse_data_config(args.data_path)
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--data_path", type=str, required=True)
-args = parser.parse_args()
-
-data_cfg = parse_data_config(args.data_path)
-
-path = "/home/alex/thesis-workspace/data/bdd/labels/100k"
+path = "/home/alex/workspace/thesis/data/bdd/labels/100k"
 dirs = ["train", "val"]
 
 # attributes = weather / scene / timeofday
@@ -22,14 +19,26 @@ count = {
 	"timeofday": defaultdict(lambda: 0)
 }
 
-for f in os.listdir(path + "/val"):
-	j = json.load(open(path + "/val/" + f, "rt"))
-	w = j["attributes"]["weather"]
-	s = j["attributes"]["scene"]
-	t = j["attributes"]["timeofday"]
-	count["weather"][w] += 1
-	count["scene"][s] += 1
-	count["timeofday"][t] += 1
+what = "/train"
+
+# for f in os.listdir(path + what):
+# 	j = json.load(open(path + what + "/" + f, "rt"))
+# 	w = j["attributes"]["weather"]
+# 	s = j["attributes"]["scene"]
+# 	t = j["attributes"]["timeofday"]
+# 	count["weather"][w] += 1
+# 	count["scene"][s] += 1
+# 	count["timeofday"][t] += 1
+
+fp = open("./bdd_persons.txt", "wt")
+for f in os.listdir(path + what):
+	j = json.load(open(path + what + "/" + f, "rt"))
+
+	obj = j['frames'][0]['objects']
+	ped = len([1 for x in obj if x['category'] == 'person'])
+	if ped >= 50:
+		print(f)
+fp.close()
 
 for t in count.keys():
 	s = "%10s: " % t

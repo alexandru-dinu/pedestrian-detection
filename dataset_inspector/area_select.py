@@ -11,8 +11,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--imgs_txt", type=str, required=True, help="txt file with image paths")
 parser.add_argument("--cls", nargs="+", type=int, required=True, help="target classes")
 parser.add_argument("--names", type=str)
-parser.add_argument("--w_thr", nargs="*", type=float, default=0, help="width threshold (0,1)")
-parser.add_argument("--h_thr", nargs="*", type=float, default=0, help="height threshold (0,1)")
+parser.add_argument("--w_thr", type=float, default=0, help="width threshold (0,1)")
+parser.add_argument("--h_thr", type=float, default=0, help="height threshold (0,1)")
 args = parser.parse_args()
 
 names = [x.strip() for x in open(args.names, "r").readlines()]

@@ -36,13 +36,13 @@ def coco_to_bdd():
 	# N/A: rider, traffic sign
 
 	conv[coco_names.index("bicycle")] = bdd_names.index("bike")
-	conv[coco_names.index("bus")] = bdd_names.index("bus")
-	conv[coco_names.index("car")] = bdd_names.index("car")
-	conv[coco_names.index("motorbike")] = bdd_names.index("motor")
+	# conv[coco_names.index("bus")] = bdd_names.index("bus")
+	# conv[coco_names.index("car")] = bdd_names.index("car")
+	# conv[coco_names.index("motorbike")] = bdd_names.index("motor")
 	conv[coco_names.index("person")] = bdd_names.index("person")
-	conv[coco_names.index("traffic light")] = bdd_names.index("traffic light")
-	conv[coco_names.index("train")] = bdd_names.index("train")
-	conv[coco_names.index("truck")] = bdd_names.index("truck")
+	# conv[coco_names.index("traffic light")] = bdd_names.index("traffic light")
+	# conv[coco_names.index("train")] = bdd_names.index("train")
+	# conv[coco_names.index("truck")] = bdd_names.index("truck")
 
 	return conv
 
