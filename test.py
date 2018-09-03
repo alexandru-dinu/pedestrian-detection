@@ -111,20 +111,20 @@ confusion = np.zeros((len(valid_names), len(valid_names)))
 
 
 def do_name_conversion(det):
-	for n in range(num_train_names):
-		if det.size(0) == 0: break
+	# detections -> annotations names
 
-		# there exists a class conversion for class n from X to Y
+	conv_det = []
+
+	for n in range(80):
 		if names_conv_dict[n] != -1:
 			aux = det[det[..., -1] == n]
 			if aux.size(0) == 0: continue
 			aux[..., -1] = names_conv_dict[n]
-			det[det[..., -1] == n] = aux
-		# no class conversion for class n, remove detections
-		else:
-			det = det[det[..., -1] != n]
+			conv_det.append(aux)
 
-	return det
+	conv_det = torch.cat(conv_det, dim=0)
+
+	return conv_det
 
 
 def save_confusion_matrix(cm):
@@ -183,9 +183,9 @@ for batch_i, (paths, imgs, targets) in enumerate(dataloader):
 		annotations = targets[sample_i, targets[sample_i, :, 3] != 0]
 
 		# remove annotations with area < thr
-		if annotations.size(0) > 0:
-			areas = annotations[:, 3] * annotations[:, 4]
-			annotations = annotations[areas >= opt.area_thres]
+		# if annotations.size(0) > 0:
+		# 	areas = annotations[:, 3] * annotations[:, 4]
+		# 	annotations = annotations[areas >= opt.area_thres]
 
 		annotation_count = annotations.size(0)
 
@@ -206,6 +206,14 @@ for batch_i, (paths, imgs, targets) in enumerate(dataloader):
 		detections = detections[np.argsort(-detections[:, 4])]
 		if names_conv_needed:
 			detections = do_name_conversion(detections)
+
+			ana = []
+			for a in annotations:
+				if a[0] in names_conv_dict.values():
+					ana.append(a)
+				else:
+					annotation_count -= 1
+			annotations = torch.stack(ana, dim=0)
 
 		# used to keep track of FNs
 		current_tps_per_class = defaultdict(lambda: 0)
@@ -322,7 +330,7 @@ for batch_i, (paths, imgs, targets) in enumerate(dataloader):
 			out_str += stats_str % (
 				cls, tp, fp, fn, p, r, f1,
 				err_fp['no_gt'], err_fp['iou'], err_fp['cls'], err_fp['mult'],
-				100.0 * np.mean(err_fn), np.sqrt(np.mean(err_fn)*real_img_w*real_img_h)
+				100.0 * np.mean(err_fn), np.sqrt(np.mean(err_fn) * real_img_w * real_img_h)
 			)
 
 	print(out_str)
