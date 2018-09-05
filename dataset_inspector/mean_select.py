@@ -20,6 +20,7 @@ labels = [x.replace("png", "txt").replace("jpg", "txt").replace("images", "label
 
 means = {}
 for x in tqdm(images):
+	# bgr
 	means[x] = cv2.imread(x).mean()
 means = sorted(means.items(), key=operator.itemgetter(1))
 

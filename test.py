@@ -109,7 +109,6 @@ errors = {
 
 confusion = np.zeros((len(valid_names), len(valid_names)))
 
-
 def do_name_conversion(det):
 	# detections -> annotations names
 
@@ -122,7 +121,8 @@ def do_name_conversion(det):
 			aux[..., -1] = names_conv_dict[n]
 			conv_det.append(aux)
 
-	conv_det = torch.cat(conv_det, dim=0)
+	if len(conv_det) > 0:
+		conv_det = torch.cat(conv_det, dim=0)
 
 	return conv_det
 
@@ -157,7 +157,8 @@ def save_confusion_matrix(cm):
 	# print(all_instances)
 
 	fig.tight_layout()
-	plt.savefig("cm.png")
+	s = opt.data_config_path.split("/")[-1].split(".")[0]
+	plt.savefig("cm_%s.png" % s)
 
 
 # perform testing
@@ -198,7 +199,7 @@ for batch_i, (paths, imgs, targets) in enumerate(dataloader):
 				for a in annotations:
 					all_scores[valid_names[int(a[0])]]['fn'] += 1
 					# append area of fn
-					errors[valid_names[int(a[0])]]['fn'].append(a[3] * a[4] * real_img_ratio)
+					errors[valid_names[int(a[0])]]['fn'].append(a[4] * real_img_h)
 				APs.append(0)
 			continue
 
@@ -213,7 +214,8 @@ for batch_i, (paths, imgs, targets) in enumerate(dataloader):
 					ana.append(a)
 				else:
 					annotation_count -= 1
-			annotations = torch.stack(ana, dim=0)
+			if len(ana) > 0:
+				annotations = torch.stack(ana, dim=0)
 
 		# used to keep track of FNs
 		current_tps_per_class = defaultdict(lambda: 0)
@@ -227,6 +229,8 @@ for batch_i, (paths, imgs, targets) in enumerate(dataloader):
 		# will contain each detected gt
 		detected = []
 
+		rel_ac = 0
+
 		# If no annotations add number of detections as incorrect
 		if annotation_count == 0:
 			correct.extend([0 for _ in range(len(detections))])
@@ -238,6 +242,11 @@ for batch_i, (paths, imgs, targets) in enumerate(dataloader):
 				all_scores[valid_names[int(d[-1])]]['fp'] += 1
 				errors[valid_names[int(d[-1])]]['fp']['no_gt'] += 1
 		else:
+			# TODO
+			rel_ac = np.count_nonzero(annotations[:, 0] == 0) + \
+					 np.count_nonzero(annotations[:, 0] == 4)
+			# TODO
+
 			# Extract target boxes as (x1, y1, x2, y2)
 			target_boxes = torch.FloatTensor(annotations[:, 1:].shape)
 			target_boxes[:, 0] = (annotations[:, 1] - annotations[:, 3] / 2)
@@ -288,7 +297,7 @@ for batch_i, (paths, imgs, targets) in enumerate(dataloader):
 
 		for a in range(annotation_count):
 			if a not in detected:
-				ar = annotations[a, 3] * annotations[a, 4] * real_img_ratio
+				ar = annotations[a, 4] * real_img_h
 				cls = int(annotations[a, 0])
 				errors[valid_names[cls]]['fn'].append(ar)
 
@@ -326,11 +335,11 @@ for batch_i, (paths, imgs, targets) in enumerate(dataloader):
 			f1 = 0 if p + r == 0 else 2 * p * r / (p + r)
 
 			stats_str = "\t%15s: [tp %5d] [fp %5d] [fn %5d] [p %.3f] [r %.3f] [f1 %.3f] " + \
-						"[no_gt %5d] [iou %5d] [cls %5d] [mult %5d] [area %f: sqrt %4.6f]\n"
+						"[no_gt %5d] [iou %5d] [cls %5d] [mult %5d] [height %f]\n"
 			out_str += stats_str % (
 				cls, tp, fp, fn, p, r, f1,
 				err_fp['no_gt'], err_fp['iou'], err_fp['cls'], err_fp['mult'],
-				100.0 * np.mean(err_fn), np.sqrt(np.mean(err_fn) * real_img_w * real_img_h)
+				np.mean(err_fn)
 			)
 
 	print(out_str)

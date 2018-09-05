@@ -22,11 +22,11 @@ citypersons_names = [
 def coco_to_udacity():
 	conv = defaultdict(lambda: -1)
 
-	conv[coco_names.index("bicycle")] = udacity_names.index("biker")
-	conv[coco_names.index("car")] = udacity_names.index("car")
-	conv[coco_names.index("person")] = udacity_names.index("pedestrian")
-	conv[coco_names.index("traffic light")] = udacity_names.index("trafficLight")
-	conv[coco_names.index("truck")] = udacity_names.index("truck")
+	# conv[coco_names.index("bicycle")] = udacity_names.index("biker")
+	conv[coco_names.index("car")] = crowdai_names.index("car")
+	conv[coco_names.index("person")] = crowdai_names.index("pedestrian")
+	# conv[coco_names.index("traffic light")] = udacity_names.index("trafficLight")
+	conv[coco_names.index("truck")] = crowdai_names.index("truck")
 
 	return conv
 
@@ -43,6 +43,42 @@ def coco_to_bdd():
 	conv[coco_names.index("traffic light")] = bdd_names.index("traffic light")
 	conv[coco_names.index("train")] = bdd_names.index("train")
 	conv[coco_names.index("truck")] = bdd_names.index("truck")
+
+	return conv
+
+
+def coco_to_crowdai():
+	conv = defaultdict(lambda: -1)
+
+	conv[coco_names.index("car")] = crowdai_names.index("car")
+	conv[coco_names.index("person")] = crowdai_names.index("pedestrian")
+	conv[coco_names.index("truck")] = crowdai_names.index("truck")
+
+	return conv
+
+
+def coco_to_citypersons():
+	conv = defaultdict(lambda: -1)
+
+	conv[coco_names.index("person")] = citypersons_names.index("pedestrian")
+
+	return conv
+
+
+def bdd_to_crowdai():
+	conv = defaultdict(lambda: -1)
+
+	conv[bdd_names.index("person")] = crowdai_names.index("pedestrian")
+	conv[bdd_names.index("car")] = crowdai_names.index("car")
+	conv[bdd_names.index("truck")] = crowdai_names.index("truck")
+
+	return conv
+
+
+def citypersons_to_crowdai():
+	conv = defaultdict(lambda: -1)
+
+	conv[citypersons_names.index("pedestrian")] = crowdai_names.index("pedestrian")
 
 	return conv
 

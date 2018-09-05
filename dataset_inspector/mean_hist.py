@@ -2,6 +2,9 @@ import pickle
 import matplotlib.pyplot as plt
 import argparse
 
+plt.rcParams["font.weight"] = "bold"
+plt.rcParams["axes.labelweight"] = "bold"
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--pickle", type=str, required=True)
 parser.add_argument("--bins", type=int, required=True)
@@ -14,11 +17,13 @@ d = [x[1] for x in d]
 
 l, h = min(d) - 5, max(d) + 5
 
-plt.figure(figsize=(12, 10))
-n, bins, patches = plt.hist(d, bins=args.bins, range=[l, h], facecolor='green')
-plt.axis([l, h, 0, max(n) + 2])
-plt.xticks(range(0, int(max(d)), 10))
-plt.yticks(range(0, int(max(n)) + 2, 250))
-plt.grid(True)
+plt.figure(figsize=(6, 5))
+n, bins, patches = plt.hist(d, bins=args.bins, range=[l, h], facecolor='blue')
+plt.axis([40, 110, 0, max(n)])
+# plt.xticks(range(20, 180, 10))
+# plt.yticks(range(0, int(max(n)) + 2, 250))
+# plt.grid(True)
+plt.xlabel("Color average")
+plt.ylabel("Number of frames")
 plt.tight_layout()
 plt.savefig(args.fig)
