@@ -1,7 +1,5 @@
 # PyTorch-YOLOv3
 
-This is my **main** YOLOv3 workspace.
-
 ## Table of Contents
 * [Paper](#paper)
 * [Algorithm description](#algorithm-description)
@@ -101,4 +99,4 @@ and the best overlapping anchor's index is `a`
 ```
 
 - [@eriklindernoren](https://github.com/eriklindernoren/PyTorch-YOLOv3)
-- [@ayooshkathuria](https://github.com/ayooshkathuria/pytorch-yolo-v3).
+- [@ayooshkathuria](https://github.com/ayooshkathuria/pytorch-yolo-v3)
