@@ -1,4 +1,4 @@
-# PyTorch-YOLOv3
+# Pedestrian Detection with YOLOv3
 
 ## Table of Contents
 * [Paper](#paper)
