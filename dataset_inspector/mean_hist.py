@@ -18,7 +18,7 @@ d = [x[1] for x in d]
 l, h = min(d) - 5, max(d) + 5
 
 plt.figure(figsize=(6, 5))
-n, bins, patches = plt.hist(d, bins=args.bins, range=[l, h], facecolor='blue')
+n, bins, patches = plt.hist(d, bins=args.bins, range=[l, h], facecolor="blue")
 plt.axis([40, 110, 0, max(n)])
 # plt.xticks(range(20, 180, 10))
 # plt.yticks(range(0, int(max(n)) + 2, 250))

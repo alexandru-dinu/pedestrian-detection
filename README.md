@@ -1,5 +1,7 @@
 # Pedestrian Detection with YOLOv3
 
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 ## Table of Contents
 * [Paper](#paper)
 * [Algorithm description](#algorithm-description)
@@ -81,7 +83,7 @@ and the best overlapping anchor's index is `a`
 
 ## Datasets
 - converted labels format: `<frame_id>.txt : [class rx ry rw rh]`
-	- `rx, ry` are the center `x, y` coordinates,
+    - `rx, ry` are the center `x, y` coordinates,
     - `rw, rh` are the width and height
     - all of them are normalized to image width / height
 - `(train | test | val).txt` file containing pairs `(<image_i>.txt, <labels_i>.txt)`

@@ -12,10 +12,16 @@ plt.rcParams["axes.labelweight"] = "bold"
 
 path = "/home/alex/workspace/thesis/datasets/citypersons/all.txt"
 
-lbls = [x.strip().replace("images", "labels").replace("png", "txt") for x in open(path, "rt")]
+lbls = [
+    x.strip().replace("images", "labels").replace("png", "txt")
+    for x in open(path, "rt")
+]
 
 # get ped count
-labels = {i: [list(map(float, x.strip().split(" "))) for x in open(lbls[i]).readlines()] for i in range(len(lbls))}
+labels = {
+    i: [list(map(float, x.strip().split(" "))) for x in open(lbls[i]).readlines()]
+    for i in range(len(lbls))
+}
 
 lls = ["fake", "pedestrian", "rider", "sitting", "unusual", "group"]
 
@@ -38,8 +44,8 @@ lls = ["fake", "pedestrian", "rider", "sitting", "unusual", "group"]
 # NUM INSTANCES
 inst = defaultdict(lambda: 0)
 for i in range(len(labels)):
-	for l in labels[i]:
-		inst[lls[int(l[0])]] += 1
+    for l in labels[i]:
+        inst[lls[int(l[0])]] += 1
 
 ax = plt.subplot()
 values = [(a, inst[a]) for a in list(inst.keys())]

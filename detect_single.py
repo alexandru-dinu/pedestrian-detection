@@ -10,13 +10,30 @@ from utils.utils import *
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--model_config_path', type=str, required=True, help='path to model config file')
-parser.add_argument('--data_config_path', type=str, required=True, help='path to data config file')
-parser.add_argument('--weights_path', type=str, required=True, help='path to weights file')
-parser.add_argument('--conf_thres', type=float, default=0.8, help='object confidence threshold')
-parser.add_argument('--nms_thres', type=float, default=0.4, help='iou thresshold for non-maximum suppression')
-parser.add_argument('--area_thres', type=float, default=0, help='ignore objs with area < threshold')
-parser.add_argument('--use_cuda', action="store_true", help='whether to use cuda if available')
+parser.add_argument(
+    "--model_config_path", type=str, required=True, help="path to model config file"
+)
+parser.add_argument(
+    "--data_config_path", type=str, required=True, help="path to data config file"
+)
+parser.add_argument(
+    "--weights_path", type=str, required=True, help="path to weights file"
+)
+parser.add_argument(
+    "--conf_thres", type=float, default=0.8, help="object confidence threshold"
+)
+parser.add_argument(
+    "--nms_thres",
+    type=float,
+    default=0.4,
+    help="iou thresshold for non-maximum suppression",
+)
+parser.add_argument(
+    "--area_thres", type=float, default=0, help="ignore objs with area < threshold"
+)
+parser.add_argument(
+    "--use_cuda", action="store_true", help="whether to use cuda if available"
+)
 opt = parser.parse_args()
 
 for x in opt.__dict__:
@@ -24,15 +41,17 @@ for x in opt.__dict__:
 print("-" * 80)
 
 FONT = cv2.FONT_HERSHEY_TRIPLEX
-COLORS = [tuple(255 * np.array(plt.get_cmap('tab20')(i)[:-1])) for i in np.linspace(0, 1, 20)]
+COLORS = [
+    tuple(255 * np.array(plt.get_cmap("tab20")(i)[:-1])) for i in np.linspace(0, 1, 20)
+]
 
 cuda = torch.cuda.is_available() and opt.use_cuda
 Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 
 # Get data configuration
 data_config = parse_data_config(opt.data_config_path)
-num_classes = int(data_config['classes'])
-classes = load_names(data_config['names'])
+num_classes = int(data_config["classes"])
+classes = load_names(data_config["names"])
 
 for x, y in data_config.items():
     print("%25s: %s" % (x, y))
@@ -45,7 +64,7 @@ model.load_weights(opt.weights_path)
 model.cuda()
 model.eval()
 
-img_size = int(model.hyperparams['height'])
+img_size = int(model.hyperparams["height"])
 
 for x, y in model.hyperparams.items():
     print("%25s: %s" % (x, y))
@@ -62,7 +81,9 @@ while True:
     # Get detections
     with torch.no_grad():
         detections = model(input_img)
-        detections = non_max_suppression(detections, num_classes, opt.conf_thres, opt.nms_thres)
+        detections = non_max_suppression(
+            detections, num_classes, opt.conf_thres, opt.nms_thres
+        )
         detections = detections[0]
 
     filtered_detections = []
@@ -103,13 +124,24 @@ while True:
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
 
             # add label
-            cv2.putText(img, str(int(cls_pred)), (x1, y1 - 3), FONT, 1, (255, 255, 255), 1)
+            cv2.putText(
+                img, str(int(cls_pred)), (x1, y1 - 3), FONT, 1, (255, 255, 255), 1
+            )
 
             print(
-                '\t+ Coords: [%4d, %4d, %4d, %4d], Class: %s, ObjConf: %.5f, ClassProb: %.5f, Area: %.5f' % \
-                (x1, y1, x2, y2, classes[int(cls_pred)], conf.item(), cls_conf.item(), area)
+                "\t+ Coords: [%4d, %4d, %4d, %4d], Class: %s, ObjConf: %.5f, ClassProb: %.5f, Area: %.5f"
+                % (
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    classes[int(cls_pred)],
+                    conf.item(),
+                    cls_conf.item(),
+                    area,
+                )
             )
 
     # Save generated image with detections
-    save_path = 'detections/single.png'
+    save_path = "detections/single.png"
     cv2.imwrite(save_path, img)

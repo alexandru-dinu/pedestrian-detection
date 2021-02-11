@@ -19,23 +19,23 @@ dirs = ["train", "val"]
 # attributes = weather / scene / timeofday
 
 count = {
-	"weather"  : defaultdict(lambda: 0),
-	"scene"    : defaultdict(lambda: 0),
-	"timeofday": defaultdict(lambda: 0)
+    "weather": defaultdict(lambda: 0),
+    "scene": defaultdict(lambda: 0),
+    "timeofday": defaultdict(lambda: 0),
 }
 
 what = "/" + dirs[0]
 
 for what in dirs:
-	what = "/" + what
-	for f in tqdm(os.listdir(path + what)):
-		j = json.load(open(path + what + "/" + f, "rt"))
-		w = j["attributes"]["weather"]
-		s = j["attributes"]["scene"]
-		t = j["attributes"]["timeofday"]
-		count["weather"][w] += 1
-		count["scene"][s] += 1
-		count["timeofday"][t] += 1
+    what = "/" + what
+    for f in tqdm(os.listdir(path + what)):
+        j = json.load(open(path + what + "/" + f, "rt"))
+        w = j["attributes"]["weather"]
+        s = j["attributes"]["scene"]
+        t = j["attributes"]["timeofday"]
+        count["weather"][w] += 1
+        count["scene"][s] += 1
+        count["timeofday"][t] += 1
 
 # fp = open("./bdd_persons.txt", "wt")
 # ccc = defaultdict(lambda: 0)
@@ -72,19 +72,19 @@ for what in dirs:
 
 fig = plt.subplots(1, 3, figsize=(16, 6))
 for i, t in enumerate(count.keys()):
-	values = [(a, count[t][a]) for a in list(count[t].keys())]
-	x, y = [a for (a, _) in values], [a for (_, a) in values]
-	ax = plt.subplot(1, 3, i + 1)
-	ax.bar(range(len(y)), y)
-	ax.set_xticks(range(len(y)))
-	ax.set_xticklabels(x)
-	plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
-	ax.set_title(t)
+    values = [(a, count[t][a]) for a in list(count[t].keys())]
+    x, y = [a for (a, _) in values], [a for (_, a) in values]
+    ax = plt.subplot(1, 3, i + 1)
+    ax.bar(range(len(y)), y)
+    ax.set_xticks(range(len(y)))
+    ax.set_xticklabels(x)
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+    ax.set_title(t)
 plt.tight_layout()
 plt.show()
 
 for t in count.keys():
-	s = "%10s: " % t
-	for x, y in count[t].items():
-		s += "[%15s %6d] " % (x, y)
-	print(s)
+    s = "%10s: " % t
+    for x, y in count[t].items():
+        s += "[%15s %6d] " % (x, y)
+    print(s)
